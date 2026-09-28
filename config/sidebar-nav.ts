@@ -14,7 +14,7 @@ import {
   UserCheck,         // Replaced KeyRound for "Logins" (Verifying user presence)
   Presentation,      // Replaced KeyRound for "Wallboard" (Represents a large display/board)
   Workflow,          // Replaced KeyRound for "Operations" (Interconnected processes)
-  PhoneOutgoing,     // Replaced KeyRound for "Dialer" (Directly indicates outbound calling)
+  PhoneOutgoing, PhoneCall,     // Replaced KeyRound for "Dialer" (Directly indicates outbound calling)
   Settings,
   CloudUpload,
   Webhook,
@@ -46,7 +46,7 @@ export const sidebarGroups = [
       { name: "All Leads", href: "/admin/leads", icon: ClipboardList, module: "leads" },
       { name: "Upload Leads", href: "/admin/upload", icon: FileUp, module: "leads" },
       { name: "Available Leads", href: "/admin/calls", icon: Target, module: "dialer" },
-      { name: "Unicorn AI Calling", href: "/unicorn-calling", icon: PhoneOutgoing, module: "dialer" },
+      { name: "Unicorn AI Calling", href: "/unicorn-calling", icon: PhoneOutgoing, PhoneCall, module: "dialer" },
     ]
   },
   {
@@ -71,6 +71,7 @@ export const sidebarGroups = [
     label: "Analytics",
     items: [
       { name: "Reports", href: "/admin/reports", icon: BarChart3, module: "analytics" },
+      { name: "Call Reports", href: "/admin/c2c-reports", icon: PhoneCall, module: "analytics" },
       { name: "Disbursed Data", href: "/admin/disbursement-report", icon: IndianRupee, module: "analytics" },
       { name: "Activities", href: "/admin/audit-logs", icon: Activity, module: "logs" },
       { name: "Logins", href: "/admin/logins", icon: UserCheck, module: "logs" },
