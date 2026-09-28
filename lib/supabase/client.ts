@@ -23,11 +23,11 @@ export function createClient() {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn("Supabase environment variables are not set. Returning mock client.")
-    // Return a mock client for development
+    // Return a mock client that THROWS an error for auth so the user sees it in the UI!
     return {
       auth: {
         getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-        signInWithPassword: () => Promise.resolve({ data: { user: null }, error: null }),
+        signInWithPassword: () => Promise.resolve({ data: { user: null }, error: new Error("Missing Supabase environment variables! Please add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to your Cloudflare Pages Dashboard.") }),
         signOut: () => Promise.resolve({ error: null }),
       },
       from: () => makeMockQuery(),
