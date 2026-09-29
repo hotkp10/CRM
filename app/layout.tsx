@@ -7,6 +7,7 @@ import "./globals.css"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { Suspense } from "react"
 import PWAWrapper from "@/components/pwa-client-wrapper"
+import { Analytics } from "@vercel/analytics/next"
 
 // Providers
 import { TenantProvider } from "@/context/tenant-provider"
@@ -168,6 +169,8 @@ export default async function RootLayout({
 
               {/* Toast notifications */}
               <Toaster position="top-right" richColors closeButton duration={4000} />
+              
+              <Analytics />
 
             </TenantProvider>
           </ThemeProvider>

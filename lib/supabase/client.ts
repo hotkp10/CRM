@@ -40,14 +40,27 @@ export function createClient() {
     },
   }
 
-  // Only use the singleton client on the client-side (browser)
-  if (typeof window === "undefined") {
-    return createBrowserClient(supabaseUrl, supabaseAnonKey, clientOptions)
-  }
+  try {
+    // Only use the singleton client on the client-side (browser)
+    if (typeof window === "undefined") {
+      return createBrowserClient(supabaseUrl, supabaseAnonKey, clientOptions)
+    }
 
-  if (!clientInstance) {
-    clientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey, clientOptions)
-  }
+    if (!clientInstance) {
+      clientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey, clientOptions)
+    }
 
-  return clientInstance
+    return clientInstance
+  } catch (error) {
+    console.error("Failed to initialize Supabase client:", error)
+    // Fall back to mock client so the app doesn't crash on invalid URLs
+    return {
+      auth: {
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+        signInWithPassword: () => Promise.resolve({ data: { user: null }, error: new Error(`Failed to initialize Supabase client. Please check if your NEXT_PUBLIC_SUPABASE_URL is valid (must start with https://). Error: ${error}`) }),
+        signOut: () => Promise.resolve({ error: null }),
+      },
+      from: () => makeMockQuery(),
+    } as any
+  }
 }
