@@ -15,7 +15,6 @@ export function CommandMenu() {
   
   // Quick Actions (always available)
   const quickActions = [
-    { id: 'debug', title: '🐞 Open Performance Debugger & Profiler', icon: Bug, action: () => { window.dispatchEvent(new CustomEvent('hanva-open-debugger')); setOpen(false); } },
     { id: 'dashboard', title: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
     { id: 'leads', title: 'Lead Management', icon: User, href: '/admin/leads' },
     { id: 'properties', title: 'Property Inventory', icon: Building, href: '/admin/properties' },
