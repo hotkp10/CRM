@@ -30,7 +30,8 @@ import {
   History,
   PlaySquare,
   BarChart,
-  CreditCard
+  CreditCard,
+  Upload
 } from "lucide-react"
 
 export const sidebarGroups = [
@@ -78,6 +79,7 @@ export const sidebarGroups = [
       { name: "Wallboard", href: "/admin/wallboard", icon: Presentation, module: "wallboard" },
       { name: "IVR Campaigns", href: "/admin/ivr-campaigns", icon: Workflow, module: "ivr" },
       { name: "IVR Configs", href: "/admin/ivr-configs", icon: Settings, module: "ivr" },
+      { name: "IVR Upload", href: "/admin/ivr-upload", icon: Upload, module: "ivr" },
       { name: "Files", href: "/admin/master-data", icon: CloudUpload, module: "files" },
     ]
   },

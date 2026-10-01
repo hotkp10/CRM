@@ -107,7 +107,26 @@ export async function POST(request: NextRequest) {
     const disposition = body.disposition || 'UNKNOWN';
     
     // 🔴 EXTRACT TENANT ID
-    const tenantId = body.tenantId || body.tenant || request.nextUrl.searchParams.get("tenant") || null;
+    let tenantId = body.tenantId || body.tenant || request.nextUrl.searchParams.get("tenant") || null;
+
+    // ===== DID-BASED TENANT ROUTING (Secure auto-routing) =====
+    const rawDid = body.did || body.DID || body.calledNumber || body.called_number || body.dnis || body.DNIS || null;
+    if (rawDid) {
+      const cleanDid = String(rawDid).replace(/\D/g, '').slice(-10);
+      const { data: didRecord } = await supabaseAdmin
+        .from('tenant_did_registry')
+        .select('tenant_id')
+        .eq('did_number', cleanDid)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (didRecord?.tenant_id) {
+        tenantId = didRecord.tenant_id;
+        console.log(`✅ [IVR DID-ROUTE] DID ${cleanDid} → tenant ${tenantId}`);
+      } else {
+        console.warn(`⚠️ [IVR DID-ROUTE] DID ${cleanDid} not found in registry. Falling back to manual tenant param.`);
+      }
+    }
+    // ===== END DID ROUTING =====
 
     console.log(`📞 Target Phone: ${customerPhone}, Tenant: ${tenantId}`);
 
