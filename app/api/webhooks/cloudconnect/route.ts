@@ -76,21 +76,7 @@ async function handleWebhook(req: Request) {
 
     console.warn(`[Ozonetel Webhook] Provided API Key: ${providedApiKey ? '***' + providedApiKey.slice(-4) : 'None'}`);
 
-    // 🔥 LOG ENTIRE RAW PAYLOAD TO DB FOR FRONTEND DEBUGGING 🔥
-    try {
-        const adminDb = getSupabaseAdmin();
-        await adminDb.from('webhook_logs').insert({
-            endpoint: '/api/webhooks/cloudconnect',
-            method: req.method,
-            payload: {
-                searchParams: Object.fromEntries(searchParams.entries()),
-                body: bodyData,
-                headers: Object.fromEntries(req.headers.entries())
-            }
-        });
-    } catch (e) {
-        console.error('Failed to save to webhook_logs:', e);
-    }
+    
 
     if (providedApiKey !== expectedApiKey && expectedApiKey !== 'HANVA_OZT_7X9Q2P4L') {
         if (providedApiKey !== 'HANVA_OZT_7X9Q2P4L') {

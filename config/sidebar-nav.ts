@@ -1,6 +1,6 @@
 // config/sidebar-nav.ts
 import { 
-  LayoutDashboard, Webhook as WebhookIcon, 
+  LayoutDashboard, 
   ClipboardList,     // Replaced FileSpreadsheet for "All Leads" (List of records)
   FileUp,            // Replaced UserPlus for "Upload Leads" (Indicates file uploading)
   Target,            // Replaced FileSpreadsheet for "Available Leads" (Actionable targets)
@@ -87,7 +87,6 @@ export const sidebarGroups = [
     label: "System",
     items: [
       { name: "Automations", href: "/admin/automations", icon: Zap, module: "core" },
-      { name: "Webhook Debugger", href: "/admin/webhook-logs", icon: WebhookIcon, module: "core" },
       { name: "Settings", href: "/admin/settings", icon: Settings, module: "core" },
       { name: "External Portals", href: "/admin/integrations/portals", icon: Webhook, module: "real_estate" },
     ]

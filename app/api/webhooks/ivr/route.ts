@@ -79,20 +79,7 @@ export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text();
 
-    // 🔥 LOG ENTIRE RAW PAYLOAD TO DB FOR FRONTEND DEBUGGING 🔥
-    try {
-        await supabaseAdmin.from('webhook_logs').insert({
-            endpoint: '/api/webhooks/ivr',
-            method: request.method,
-            payload: {
-                searchParams: Object.fromEntries(request.nextUrl.searchParams.entries()),
-                body: rawBody,
-                headers: Object.fromEntries(request.headers.entries())
-            }
-        });
-    } catch (e) {
-        console.error('Failed to save to webhook_logs:', e);
-    }
+    
     console.log("📦 [IVR RAW PAYLOAD]:", rawBody); // Force Vercel to print the exact raw string
 
     let body: any = {};
