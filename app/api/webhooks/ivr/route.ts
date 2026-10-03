@@ -345,6 +345,7 @@ export async function POST(request: NextRequest) {
             hangup_code: hangupCode,
             clid: clid,
             answer_date: answerDate ? new Date(answerDate).toISOString() : null,
+            raw_payload: body,
         });
         console.log("📊 Logged call to ivr_call_logs for analytics.");
     } catch (logErr) {

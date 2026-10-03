@@ -4,11 +4,12 @@ import { useState, useEffect, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { BarChart, Download, PhoneOutgoing, PhoneCall, Clock, Coins, Hash, Loader2, PieChart as PieChartIcon, Activity, AlertCircle } from "lucide-react"
+import { BarChart, Download, PhoneOutgoing, PhoneCall, Clock, Coins, Hash, Loader2, PieChart as PieChartIcon, Activity, AlertCircle, FileJson } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts"
 import { toast } from "sonner"
 
@@ -314,6 +315,7 @@ export default function IvrReportsPage() {
                                         <TableHead className="text-center font-bold text-slate-700">Bill Sec</TableHead>
                                         <TableHead className="text-center font-bold text-slate-700">DTMF Input</TableHead>
                                         <TableHead className="text-right font-bold text-slate-700">Credits</TableHead>
+                                        <TableHead className="text-center font-bold text-slate-700">Details</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -340,10 +342,27 @@ export default function IvrReportsPage() {
                                             <TableCell className="text-right font-black text-amber-600">
                                                 {log.credits_used ? `-${Math.abs(log.credits_used)}` : '0'}
                                             </TableCell>
+                                            <TableCell className="text-center">
+                                                {log.raw_payload ? (
+                                                    <Dialog>
+                                                        <DialogTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-indigo-600"><FileJson className="w-4 h-4" /></Button>
+                                                        </DialogTrigger>
+                                                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                                                            <DialogHeader>
+                                                                <DialogTitle>Raw Webhook Payload</DialogTitle>
+                                                            </DialogHeader>
+                                                            <pre className="bg-slate-950 text-emerald-400 p-4 rounded-md text-xs font-mono overflow-x-auto whitespace-pre-wrap">
+                                                                {JSON.stringify(log.raw_payload, null, 2)}
+                                                            </pre>
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                ) : <span className="text-xs text-slate-400">N/A</span>}
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                     {logs.length === 0 && (
-                                        <TableRow><TableCell colSpan={6} className="text-center py-16 text-slate-500 font-medium">No logs found for this batch.</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={7} className="text-center py-16 text-slate-500 font-medium">No logs found for this batch.</TableCell></TableRow>
                                     )}
                                 </TableBody>
                             </Table>
