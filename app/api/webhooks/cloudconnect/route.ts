@@ -201,7 +201,7 @@ async function handleWebhook(req: Request) {
 
         // ===== DID-BASED TENANT ROUTING =====
         const potentialDids = [
-            getParam('did'), getParam('DID'),
+            getParam('did'), getParam('DID'), getParam('Did'), getParam('DialDID'),
             getParam('calledNumber'), getParam('called_number'),
             getParam('dnis'), getParam('DNIS'),
             getParam('clid'), getParam('caller_id'), getParam('CallerID'),

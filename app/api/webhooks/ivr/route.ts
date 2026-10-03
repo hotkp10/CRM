@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
 
     // ===== DID-BASED TENANT ROUTING (Secure auto-routing) =====
     const potentialDids = [
-      body.did, body.DID, 
+      body.did, body.DID, body.Did, body.DialDID, 
       body.calledNumber, body.called_number, 
       body.dnis, body.DNIS, 
       body.clid, body.caller_id, body.callerId,
