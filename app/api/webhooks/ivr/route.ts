@@ -110,20 +110,28 @@ export async function POST(request: NextRequest) {
     let tenantId = body.tenantId || body.tenant || request.nextUrl.searchParams.get("tenant") || null;
 
     // ===== DID-BASED TENANT ROUTING (Secure auto-routing) =====
-    const rawDid = body.did || body.DID || body.calledNumber || body.called_number || body.dnis || body.DNIS || null;
-    if (rawDid) {
-      const cleanDid = String(rawDid).replace(/\D/g, '').slice(-10);
-      const { data: didRecord } = await supabaseAdmin
+    const potentialDids = [
+      body.did, body.DID, 
+      body.calledNumber, body.called_number, 
+      body.dnis, body.DNIS, 
+      body.clid, body.caller_id, body.callerId,
+      body.Destination, body.destination
+    ].filter(Boolean).map(n => String(n).replace(/\D/g, '').slice(-10));
+
+    const uniqueDids = Array.from(new Set(potentialDids)).filter(n => n.length === 10);
+
+    if (uniqueDids.length > 0) {
+      const { data: didRecords } = await supabaseAdmin
         .from('tenant_did_registry')
-        .select('tenant_id')
-        .eq('did_number', cleanDid)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (didRecord?.tenant_id) {
-        tenantId = didRecord.tenant_id;
-        console.log(`✅ [IVR DID-ROUTE] DID ${cleanDid} → tenant ${tenantId}`);
+        .select('tenant_id, did_number')
+        .in('did_number', uniqueDids)
+        .eq('is_active', true);
+        
+      if (didRecords && didRecords.length > 0) {
+        tenantId = didRecords[0].tenant_id;
+        console.log(`✅ [IVR DID-ROUTE] Found matching DID ${didRecords[0].did_number} → tenant ${tenantId}`);
       } else {
-        console.warn(`⚠️ [IVR DID-ROUTE] DID ${cleanDid} not found in registry. Falling back to manual tenant param.`);
+        console.warn(`⚠️ [IVR DID-ROUTE] None of the potential DIDs (${uniqueDids.join(', ')}) were found in registry. Falling back to manual tenant param.`);
       }
     }
     // ===== END DID ROUTING =====
