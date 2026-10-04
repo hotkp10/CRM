@@ -128,7 +128,19 @@ async function handleWebhook(req: Request) {
 
         const supabaseAdmin = getSupabaseAdmin();
     
-            let TARGET_IVR_TENANT_ID = getParam('tenant') || getParam('tenantId') || getParam('tenant_id') || '576a6280-a9a2-425c-b1dd-eabfff3a00c6'; // Default fallback
+        let TARGET_IVR_TENANT_ID = getParam('tenant') || getParam('tenantId') || getParam('tenant_id') || '576a6280-a9a2-425c-b1dd-eabfff3a00c6'; // Default fallback
+
+        // ===== PRIORITY 1: Extract Tenant UUID directly from CampaignName =====
+        // Campaign name format: IVRBlast_7965373445_576a6280-a9a2-425c-b1dd-eabfff3a00c6
+        const campaignName = getParam('CampaignName') || getParam('campaignName') || '';
+        const uuidFromCampaign = campaignName.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0];
+        if (uuidFromCampaign) {
+            TARGET_IVR_TENANT_ID = uuidFromCampaign;
+            console.warn(`✅ [CloudConnect CAMPAIGN-ROUTE] Extracted tenant UUID from CampaignName: ${uuidFromCampaign}`);
+        } else {
+            console.warn(`🔍 [CloudConnect] No UUID in CampaignName ("${campaignName}"), will try DID registry...`);
+        }
+        // ===== END CAMPAIGN UUID ROUTING =====
 
         // ===== DID-BASED TENANT ROUTING =====
         const potentialDids = [
