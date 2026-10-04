@@ -117,7 +117,9 @@ export async function POST(request: NextRequest) {
       body.calledNumber, body.called_number, 
       body.dnis, body.DNIS, 
       body.clid, body.caller_id, body.callerId,
-      body.Destination, body.destination
+      body.Destination, body.destination,
+      body.CampaignName ? String(body.CampaignName).match(/\d{10}/)?.[0] : null,
+      body.campaignName ? String(body.campaignName).match(/\d{10}/)?.[0] : null
     ].filter(Boolean).map(n => String(n).replace(/\D/g, '').slice(-10));
 
     const uniqueDids = Array.from(new Set(potentialDids)).filter(n => n.length === 10);

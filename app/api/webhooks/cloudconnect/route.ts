@@ -183,7 +183,7 @@ async function handleWebhook(req: Request) {
             }
         }
 
-                let TARGET_IVR_TENANT_ID = '576a6280-a9a2-425c-b1dd-eabfff3a00c6'; // Default fallback
+                let TARGET_IVR_TENANT_ID = getParam('tenant') || getParam('tenantId') || getParam('tenant_id') || '576a6280-a9a2-425c-b1dd-eabfff3a00c6'; // Default fallback
 
         // ===== DID-BASED TENANT ROUTING =====
         const potentialDids = [
@@ -191,7 +191,8 @@ async function handleWebhook(req: Request) {
             getParam('calledNumber'), getParam('called_number'),
             getParam('dnis'), getParam('DNIS'),
             getParam('clid'), getParam('caller_id'), getParam('CallerID'),
-            getParam('Destination'), getParam('destination'), getParam('DialedNumber')
+            getParam('Destination'), getParam('destination'), getParam('DialedNumber'),
+            getParam('CampaignName') ? getParam('CampaignName').match(/\d{10}/)?.[0] : null
         ].filter(Boolean).map(n => String(n).replace(/\D/g, '').slice(-10));
 
         const uniqueDids = Array.from(new Set(potentialDids)).filter(n => n.length === 10);
