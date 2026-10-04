@@ -142,19 +142,34 @@ async function handleWebhook(req: Request) {
 
         const uniqueDids = Array.from(new Set(potentialDids)).filter(n => n.length === 10);
 
+        console.warn(`🔍 [DID-DEBUG] potentialDids raw:`, potentialDids);
+        console.warn(`🔍 [DID-DEBUG] uniqueDids (10-digit):`, uniqueDids);
+        console.warn(`🔍 [DID-DEBUG] Did param:`, getParam('Did'));
+        console.warn(`🔍 [DID-DEBUG] DialDID param:`, getParam('DialDID'));
+        console.warn(`🔍 [DID-DEBUG] CampaignName:`, getParam('CampaignName'));
+        console.warn(`🔍 [DID-DEBUG] Initial TARGET_IVR_TENANT_ID:`, TARGET_IVR_TENANT_ID);
+
         if (uniqueDids.length > 0) {
-            const { data: didRecords } = await supabaseAdmin
+            const { data: didRecords, error: didError } = await supabaseAdmin
                 .from('tenant_did_registry')
                 .select('tenant_id, did_number')
                 .in('did_number', uniqueDids)
                 .eq('is_active', true);
             
+            console.warn(`🔍 [DID-DEBUG] Registry query result:`, JSON.stringify(didRecords));
+            console.warn(`🔍 [DID-DEBUG] Registry query error:`, didError);
+
             if (didRecords && didRecords.length > 0) {
                 TARGET_IVR_TENANT_ID = didRecords[0].tenant_id;
                 console.warn(`✅ [CloudConnect DID-ROUTE] Found matching DID ${didRecords[0].did_number} → tenant ${TARGET_IVR_TENANT_ID}`);
             } else {
                 console.warn(`⚠️ [CloudConnect DID-ROUTE] None of the potential DIDs (${uniqueDids.join(', ')}) were found in registry. Falling back to default tenant.`);
+                // Show all DIDs currently in registry for comparison
+                const { data: allDids } = await supabaseAdmin.from('tenant_did_registry').select('did_number, tenant_id, is_active');
+                console.warn(`🔍 [DID-DEBUG] All DIDs in registry:`, JSON.stringify(allDids));
             }
+        } else {
+            console.warn(`⚠️ [DID-DEBUG] No 10-digit DIDs found to query!`);
         }
         // ===== END DID ROUTING =====
 
