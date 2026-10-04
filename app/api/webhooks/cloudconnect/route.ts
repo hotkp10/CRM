@@ -126,12 +126,42 @@ async function handleWebhook(req: Request) {
         return NextResponse.json({ error: 'Missing required parameter: caller_number / CallerID' }, { status: 400 });
     }
 
+        const supabaseAdmin = getSupabaseAdmin();
+    
+            let TARGET_IVR_TENANT_ID = getParam('tenant') || getParam('tenantId') || getParam('tenant_id') || '576a6280-a9a2-425c-b1dd-eabfff3a00c6'; // Default fallback
+
+        // ===== DID-BASED TENANT ROUTING =====
+        const potentialDids = [
+            getParam('did'), getParam('DID'), getParam('Did'), getParam('DialDID'),
+            getParam('calledNumber'), getParam('called_number'),
+            getParam('dnis'), getParam('DNIS'),
+            getParam('clid'), getParam('caller_id'), getParam('CallerID'),
+            getParam('Destination'), getParam('destination'), getParam('DialedNumber'),
+            getParam('CampaignName') ? getParam('CampaignName').match(/\d{10}/)?.[0] : null
+        ].filter(Boolean).map(n => String(n).replace(/\D/g, '').slice(-10));
+
+        const uniqueDids = Array.from(new Set(potentialDids)).filter(n => n.length === 10);
+
+        if (uniqueDids.length > 0) {
+            const { data: didRecords } = await supabaseAdmin
+                .from('tenant_did_registry')
+                .select('tenant_id, did_number')
+                .in('did_number', uniqueDids)
+                .eq('is_active', true);
+            
+            if (didRecords && didRecords.length > 0) {
+                TARGET_IVR_TENANT_ID = didRecords[0].tenant_id;
+                console.warn(`✅ [CloudConnect DID-ROUTE] Found matching DID ${didRecords[0].did_number} → tenant ${TARGET_IVR_TENANT_ID}`);
+            } else {
+                console.warn(`⚠️ [CloudConnect DID-ROUTE] None of the potential DIDs (${uniqueDids.join(', ')}) were found in registry. Falling back to default tenant.`);
+            }
+        }
+        // ===== END DID ROUTING =====
+
     // 1. Find the Lead
     // Format the number to get the last 10 digits for better matching
     const cleanNumber = callerNumber.replace(/^\+?\d{1,3}/, '').slice(-10); 
     console.warn(`[Ozonetel Webhook] Searching for Lead with phone containing: ${cleanNumber}`);
-    
-    const supabaseAdmin = getSupabaseAdmin();
     
     const { data: leads } = await supabaseAdmin
         .from('leads')
@@ -183,35 +213,7 @@ async function handleWebhook(req: Request) {
             }
         }
 
-                let TARGET_IVR_TENANT_ID = getParam('tenant') || getParam('tenantId') || getParam('tenant_id') || '576a6280-a9a2-425c-b1dd-eabfff3a00c6'; // Default fallback
-
-        // ===== DID-BASED TENANT ROUTING =====
-        const potentialDids = [
-            getParam('did'), getParam('DID'), getParam('Did'), getParam('DialDID'),
-            getParam('calledNumber'), getParam('called_number'),
-            getParam('dnis'), getParam('DNIS'),
-            getParam('clid'), getParam('caller_id'), getParam('CallerID'),
-            getParam('Destination'), getParam('destination'), getParam('DialedNumber'),
-            getParam('CampaignName') ? getParam('CampaignName').match(/\d{10}/)?.[0] : null
-        ].filter(Boolean).map(n => String(n).replace(/\D/g, '').slice(-10));
-
-        const uniqueDids = Array.from(new Set(potentialDids)).filter(n => n.length === 10);
-
-        if (uniqueDids.length > 0) {
-            const { data: didRecords } = await supabaseAdmin
-                .from('tenant_did_registry')
-                .select('tenant_id, did_number')
-                .in('did_number', uniqueDids)
-                .eq('is_active', true);
-            
-            if (didRecords && didRecords.length > 0) {
-                TARGET_IVR_TENANT_ID = didRecords[0].tenant_id;
-                console.warn(`✅ [CloudConnect DID-ROUTE] Found matching DID ${didRecords[0].did_number} → tenant ${TARGET_IVR_TENANT_ID}`);
-            } else {
-                console.warn(`⚠️ [CloudConnect DID-ROUTE] None of the potential DIDs (${uniqueDids.join(', ')}) were found in registry. Falling back to default tenant.`);
-            }
-        }
-        // ===== END DID ROUTING =====
+        
 
         // 2. Fallback: If no specific agent matched, find a random active/checked-in agent in the target tenant
         if (!targetAgentId) {
@@ -255,7 +257,7 @@ async function handleWebhook(req: Request) {
         const { data: createdLead, error: createError } = await supabaseAdmin
             .from('leads')
             .insert([newLeadData])
-            .select('id, name, company, phone, status, tenant_id')
+            .select('id, name, company, phone, status, tenant_id, assigned_to')
             .single();
 
         if (createdLead) {
