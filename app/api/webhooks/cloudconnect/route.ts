@@ -128,7 +128,7 @@ async function handleWebhook(req: Request) {
 
         const supabaseAdmin = getSupabaseAdmin();
     
-        let TARGET_IVR_TENANT_ID = getParam('tenant') || getParam('tenantId') || getParam('tenant_id') || '576a6280-a9a2-425c-b1dd-eabfff3a00c6'; // Default fallback
+        let TARGET_IVR_TENANT_ID = getParam('tenant') || getParam('tenantId') || getParam('tenant_id') || null;
 
         // ===== PRIORITY 1: Extract Tenant UUID directly from CampaignName =====
         // Campaign name format: IVRBlast_7965373445_576a6280-a9a2-425c-b1dd-eabfff3a00c6
@@ -184,6 +184,11 @@ async function handleWebhook(req: Request) {
             console.warn(`⚠️ [DID-DEBUG] No 10-digit DIDs found to query!`);
         }
         // ===== END DID ROUTING =====
+
+        if (!TARGET_IVR_TENANT_ID) {
+            console.error("🚨 CRITICAL: CloudConnect Webhook hit without a Tenant ID and couldn't extract one from Campaign Name or DID. Rejecting.");
+            return NextResponse.json({ status: "error", message: "tenant_id is required" }, { status: 400 });
+        }
 
     // 1. Find the Lead
     // Format the number to get the last 10 digits for better matching
