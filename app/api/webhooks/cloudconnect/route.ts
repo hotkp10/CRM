@@ -128,7 +128,7 @@ async function handleWebhook(req: Request) {
 
         const supabaseAdmin = getSupabaseAdmin();
     
-        let TARGET_IVR_TENANT_ID = getParam('tenant') || getParam('tenantId') || getParam('tenant_id') || null;
+        let TARGET_IVR_TENANT_ID = getParam('tenant') || getParam('tenantId') || getParam('tenant_id') || '576a6280-a9a2-425c-b1dd-eabfff3a00c6';
 
         // ===== PRIORITY 1: Extract Tenant UUID directly from CampaignName =====
         // Campaign name format: IVRBlast_7965373445_576a6280-a9a2-425c-b1dd-eabfff3a00c6
