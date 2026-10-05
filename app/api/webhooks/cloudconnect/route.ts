@@ -185,8 +185,24 @@ async function handleWebhook(req: Request) {
         }
         // ===== END DID ROUTING =====
 
+        // ===== FALLBACK: Agent Extension Routing =====
+        if (!TARGET_IVR_TENANT_ID && extensionNumber) {
+            const cleanExt = extensionNumber.replace(/^\+?\d{1,3}/, '').slice(-10);
+            const { data: matchingUsers } = await supabaseAdmin
+                .from('users')
+                .select('tenant_id')
+                .ilike('phone', `%${cleanExt}%`)
+                .limit(1);
+                
+            if (matchingUsers && matchingUsers.length > 0) {
+                TARGET_IVR_TENANT_ID = matchingUsers[0].tenant_id;
+                console.warn(`✅ [CloudConnect AGENT-ROUTE] Resolved tenant ${TARGET_IVR_TENANT_ID} from agent extension ${cleanExt}`);
+            }
+        }
+        // ===== END AGENT EXTENSION ROUTING =====
+
         if (!TARGET_IVR_TENANT_ID) {
-            console.error("🚨 CRITICAL: CloudConnect Webhook hit without a Tenant ID and couldn't extract one from Campaign Name or DID. Rejecting.");
+            console.error(`🚨 CRITICAL: CloudConnect Webhook hit without a Tenant ID. Ext:${extensionNumber}, Camp:${campaignName}, DID:${getParam('did')}. Rejecting.`);
             return NextResponse.json({ status: "error", message: "tenant_id is required" }, { status: 400 });
         }
 
