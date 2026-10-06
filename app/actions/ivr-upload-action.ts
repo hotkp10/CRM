@@ -28,7 +28,7 @@ export async function submitIvrUploadRequest(data: { campaignName: string, didNu
 
         const { Resend } = await import('resend')
         const resend = new Resend(process.env.RESEND_API_KEY)
-        await resend.emails.send({
+        const resendResponse = await resend.emails.send({
             from: 'Hanva CRM <reports@crm.hanva.in>',
             to: 'rajpootsingh260@gmail.com',
             subject: `[IVR Upload] ${org?.name || profile.tenant_id} - ${data.campaignName} - ${data.phoneNumbers.length} contacts`,
@@ -36,8 +36,14 @@ export async function submitIvrUploadRequest(data: { campaignName: string, didNu
             attachments: [{ filename: data.campaignName.replace(/[^a-zA-Z0-9]/g,'_') + '_contacts.csv', content: Buffer.from(csvString).toString('base64') }]
         })
 
+        if (resendResponse.error) {
+            console.error("Resend Error:", resendResponse.error);
+            throw new Error(`Email failed to send: ${resendResponse.error.message}`);
+        }
+
         return { success: true }
     } catch (e: any) {
+        console.error("IVR Upload Action Error:", e);
         return { success: false, error: e.message }
     }
 }
