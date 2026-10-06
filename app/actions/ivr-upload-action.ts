@@ -1,6 +1,12 @@
 'use server'
 
 import { createClient } from "@/lib/supabase/server"
+import { createClient as createServiceClient } from "@supabase/supabase-js"
+
+const getSupabaseAdmin = () => createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function submitIvrUploadRequest(data: { campaignName: string, didNumber: string, didLabel: string, phoneNumbers: string[], notes: string }) {
     try {
@@ -13,7 +19,8 @@ export async function submitIvrUploadRequest(data: { campaignName: string, didNu
 
         const { data: org } = await supabase.from('organizations').select('name').eq('id', profile.tenant_id).single()
 
-        const { error: insertError } = await supabase.from('ivr_upload_requests').insert({
+        const supabaseAdmin = getSupabaseAdmin()
+        const { error: insertError } = await supabaseAdmin.from('ivr_upload_requests').insert({
             tenant_id: profile.tenant_id,
             uploaded_by: user.id,
             campaign_name: data.campaignName,
@@ -38,7 +45,7 @@ export async function submitIvrUploadRequest(data: { campaignName: string, didNu
 
         if (resendResponse.error) {
             console.error("Resend Error:", resendResponse.error);
-            throw new Error(`Email failed to send: ${resendResponse.error.message}`);
+            throw new Error(`Email failed to send: ${resendResponse.error.message}`)
         }
 
         return { success: true }
@@ -46,4 +53,84 @@ export async function submitIvrUploadRequest(data: { campaignName: string, didNu
         console.error("IVR Upload Action Error:", e);
         return { success: false, error: e.message }
     }
+}
+
+// Fetch history using admin client to bypass RLS
+export async function getIvrUploadHistory(tenantId: string) {
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data, error } = await supabaseAdmin
+        .from('ivr_upload_requests')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+        .limit(20)
+    if (error) throw new Error(error.message)
+    return data || []
+}
+
+// Super admin: get all upload requests across all tenants
+export async function getAllIvrUploadRequests() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Unauthorized")
+    const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
+    if (profile?.role !== 'super_admin') throw new Error("Not authorized")
+
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data, error } = await supabaseAdmin
+        .from('ivr_upload_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100)
+    if (error) throw new Error(error.message)
+    return data || []
+}
+
+// Super admin: get wallet balance for a tenant
+export async function getTenantWallet(tenantId: string) {
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data } = await supabaseAdmin
+        .from('tenant_wallets')
+        .select('credits_balance')
+        .eq('tenant_id', tenantId)
+        .maybeSingle()
+    return data?.credits_balance ?? 0
+}
+
+// Super admin: adjust credits (plus or minus)
+export async function adjustTenantCredits(tenantId: string, amount: number, note: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Unauthorized")
+    const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
+    if (profile?.role !== 'super_admin') throw new Error("Not authorized")
+
+    const supabaseAdmin = getSupabaseAdmin()
+
+    // Upsert wallet row
+    const { data: existing } = await supabaseAdmin.from('tenant_wallets').select('credits_balance').eq('tenant_id', tenantId).maybeSingle()
+    const currentBalance = existing?.credits_balance ?? 0
+    const newBalance = Math.max(0, currentBalance + amount)
+
+    const { error } = await supabaseAdmin.from('tenant_wallets').upsert({
+        tenant_id: tenantId,
+        credits_balance: newBalance,
+    }, { onConflict: 'tenant_id' })
+
+    if (error) throw new Error(error.message)
+    return { newBalance }
+}
+
+// Super admin: update request status
+export async function updateIvrRequestStatus(id: string, status: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Unauthorized")
+    const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
+    if (profile?.role !== 'super_admin') throw new Error("Not authorized")
+
+    const supabaseAdmin = getSupabaseAdmin()
+    const { error } = await supabaseAdmin.from('ivr_upload_requests').update({ status }).eq('id', id)
+    if (error) throw new Error(error.message)
+    return true
 }

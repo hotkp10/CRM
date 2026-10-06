@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,17 +9,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, Phone, FileText, CheckCircle, AlertCircle, Loader2, History, UploadCloud } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Upload, CheckCircle, AlertCircle, Loader2, History, UploadCloud, Wallet, Plus, Minus, Coins } from "lucide-react"
 import { toast } from "sonner"
 import Papa from "papaparse"
 import { createClient } from "@/lib/supabase/client"
-import { submitIvrUploadRequest } from "@/app/actions/ivr-upload-action"
+import { submitIvrUploadRequest, getIvrUploadHistory } from "@/app/actions/ivr-upload-action"
 
 export default function IvrUploadPage() {
   const [tenantId, setTenantId] = useState<string>("")
+  const [userRole, setUserRole] = useState<string>("")
   const [dids, setDids] = useState<any[]>([])
   const [history, setHistory] = useState<any[]>([])
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   const [campaignName, setCampaignName] = useState("")
   const [selectedDidId, setSelectedDidId] = useState("")
@@ -29,6 +33,13 @@ export default function IvrUploadPage() {
   const [validPhones, setValidPhones] = useState<string[]>([])
   const [notes, setNotes] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Wallet adjustment state
+  const [showWalletDialog, setShowWalletDialog] = useState(false)
+  const [walletAmount, setWalletAmount] = useState("")
+  const [walletNote, setWalletNote] = useState("")
+  const [walletOp, setWalletOp] = useState<"add" | "subtract">("add")
+  const [isAdjusting, setIsAdjusting] = useState(false)
 
   const supabase = createClient()
 
@@ -49,29 +60,41 @@ export default function IvrUploadPage() {
     setLoadingInitial(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data: profile } = await supabase.from('users').select('tenant_id').eq('id', user.id).single()
+      const { data: profile } = await supabase.from('users').select('tenant_id, role').eq('id', user.id).single()
       if (profile) {
         setTenantId(profile.tenant_id)
-        
+        setUserRole(profile.role || '')
+
         const { data: didData } = await supabase.from('tenant_did_registry')
           .select('id, did_number, label')
           .eq('tenant_id', profile.tenant_id)
           .eq('is_active', true)
         setDids(didData || [])
 
-        fetchHistory(profile.tenant_id)
+        await fetchHistory(profile.tenant_id)
+        await fetchWallet(profile.tenant_id)
       }
     }
     setLoadingInitial(false)
   }
 
   const fetchHistory = async (tId: string) => {
-    const { data } = await supabase.from('ivr_upload_requests')
-      .select('*')
+    setLoadingHistory(true)
+    try {
+      const data = await getIvrUploadHistory(tId)
+      setHistory(data)
+    } catch (e: any) {
+      console.error("Failed to load history:", e)
+    }
+    setLoadingHistory(false)
+  }
+
+  const fetchWallet = async (tId: string) => {
+    const { data } = await supabase.from('tenant_wallets')
+      .select('credits_balance')
       .eq('tenant_id', tId)
-      .order('created_at', { ascending: false })
-      .limit(20)
-    setHistory(data || [])
+      .maybeSingle()
+    setWalletBalance(data?.credits_balance ?? 0)
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,23 +102,18 @@ export default function IvrUploadPage() {
     if (!file) return
     setCsvFile(file)
     Papa.parse(file, {
-      complete: (results) => {
-        const phones: string[] = []
-        results.data.forEach((row: any) => {
-          if (row && row[0]) {
-            const clean = String(row[0]).replace(/\D/g, '')
-            if (clean.length === 10) {
-              phones.push(clean)
-            }
-          }
-        })
+      complete: (result: any) => {
+        const phones = result.data
+          .map((row: any) => String(row[0] || '').replace(/\D/g, ''))
+          .filter((p: string) => p.length === 10)
         setValidPhones(Array.from(new Set(phones)))
-      }
+      },
+      skipEmptyLines: true
     })
   }
 
   const handleSubmit = async () => {
-    if (!campaignName) return toast.error("Campaign Name is required")
+    if (!campaignName.trim()) return toast.error("Campaign Name is required")
     if (!selectedDidId) return toast.error("Please select a DID")
     if (validPhones.length === 0) return toast.error("No valid 10-digit phone numbers found")
 
@@ -126,18 +144,65 @@ export default function IvrUploadPage() {
     setIsSubmitting(false)
   }
 
+  const handleWalletAdjust = async () => {
+    const amt = parseInt(walletAmount)
+    if (!amt || amt <= 0) return toast.error("Enter a valid credit amount")
+    const finalAmount = walletOp === 'subtract' ? -amt : amt
+
+    setIsAdjusting(true)
+    try {
+      const { adjustTenantCredits } = await import('@/app/actions/ivr-upload-action')
+      const result = await adjustTenantCredits(tenantId, finalAmount, walletNote)
+      toast.success(`Credits updated! New balance: ${result.newBalance}`)
+      setWalletBalance(result.newBalance)
+      setShowWalletDialog(false)
+      setWalletAmount("")
+      setWalletNote("")
+    } catch (e: any) {
+      toast.error(e.message)
+    }
+    setIsAdjusting(false)
+  }
+
+  const statusColor: Record<string, string> = {
+    pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    processing: 'bg-blue-100 text-blue-800 border-blue-200',
+    completed: 'bg-green-100 text-green-800 border-green-200',
+    failed: 'bg-red-100 text-red-800 border-red-200',
+  }
+
   if (loadingInitial) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-indigo-600" /></div>
   }
 
+  const isSuperAdmin = userRole === 'super_admin'
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-8 bg-slate-50 min-h-screen">
-      <div>
-        <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-          <UploadCloud className="h-8 w-8 text-indigo-600" /> 
-          IVR Lead Upload
-        </h1>
-        <p className="text-slate-500 mt-2 font-medium">Upload contact lists for IVR campaigns to be processed by our team.</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
+            <UploadCloud className="h-8 w-8 text-indigo-600" />
+            IVR Lead Upload
+          </h1>
+          <p className="text-slate-500 mt-2 font-medium">Upload contact lists for IVR campaigns to be processed by our team.</p>
+        </div>
+
+        {/* Wallet Balance Card */}
+        <div className="flex flex-col items-end gap-2">
+          <div className="bg-white border border-slate-200 rounded-2xl px-5 py-3 flex items-center gap-3 shadow-sm">
+            <Coins className="h-6 w-6 text-amber-500" />
+            <div>
+              <p className="text-xs text-slate-500 font-medium">IVR Credits</p>
+              <p className="text-2xl font-black text-slate-900">{walletBalance ?? '—'}</p>
+            </div>
+            {isSuperAdmin && (
+              <Button size="sm" variant="outline" className="ml-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50" onClick={() => setShowWalletDialog(true)}>
+                Adjust
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {dids.length === 0 && (
@@ -150,7 +215,7 @@ export default function IvrUploadPage() {
       <Card className="shadow-lg border-0 bg-white rounded-2xl overflow-hidden ring-1 ring-slate-200">
         <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
         <CardContent className="p-6 space-y-6 mt-2">
-          
+
           <div className="space-y-3">
             <Label className="text-sm font-semibold text-slate-700">Campaign Name <span className="text-rose-500">*</span></Label>
             <Input placeholder="e.g. Summer Promo 2026" value={campaignName} onChange={e => setCampaignName(e.target.value)} className="bg-slate-50 border-slate-200 focus:ring-indigo-500 rounded-xl h-11" />
@@ -180,23 +245,23 @@ export default function IvrUploadPage() {
                 Paste Numbers
               </Button>
             </div>
-            
+
             {inputMethod === 'csv' && (
               <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50">
                 <Input type="file" accept=".csv" onChange={handleFileUpload} className="max-w-xs mx-auto" />
                 <p className="text-xs text-slate-500 mt-3">First column will be parsed as phone numbers.</p>
               </div>
             )}
-            
+
             {inputMethod === 'paste' && (
-              <Textarea 
-                placeholder="Paste numbers here, one per line..." 
-                className="min-h-[150px] bg-slate-50 rounded-xl border-slate-200" 
-                value={rawText} 
-                onChange={e => setRawText(e.target.value)} 
+              <Textarea
+                placeholder="Paste numbers here, one per line..."
+                className="min-h-[150px] bg-slate-50 rounded-xl border-slate-200"
+                value={rawText}
+                onChange={e => setRawText(e.target.value)}
               />
             )}
-            
+
             {validPhones.length > 0 && (
               <div className="flex items-center gap-2 text-sm text-emerald-600 font-bold bg-emerald-50 p-3 rounded-lg border border-emerald-100">
                 <CheckCircle className="w-5 h-5" /> Found {validPhones.length.toLocaleString()} valid 10-digit numbers.
@@ -217,10 +282,12 @@ export default function IvrUploadPage() {
         </CardContent>
       </Card>
 
+      {/* Recent Upload History */}
       <Card className="shadow-sm border-slate-200 rounded-2xl overflow-hidden mt-8">
         <CardHeader className="bg-white border-b py-4">
           <CardTitle className="text-lg text-slate-800 font-bold flex items-center gap-2">
             <History className="w-5 h-5 text-indigo-500" /> Recent Upload Requests
+            {loadingHistory && <Loader2 className="w-4 h-4 animate-spin ml-2 text-slate-400" />}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -242,15 +309,15 @@ export default function IvrUploadPage() {
                   </TableCell>
                   <TableCell className="font-bold text-sm text-slate-800">{h.campaign_name}</TableCell>
                   <TableCell className="text-xs font-medium text-slate-600">{h.did_number}</TableCell>
-                  <TableCell className="text-center text-sm font-mono text-indigo-600 font-bold">{h.total_contacts}</TableCell>
+                  <TableCell className="text-center text-sm font-mono text-indigo-600 font-bold">{h.total_contacts?.toLocaleString()}</TableCell>
                   <TableCell className="text-right">
-                    <Badge variant={h.status === 'pending' ? 'secondary' : 'default'} className="text-[10px] uppercase font-bold px-2 py-0.5">
+                    <Badge className={`text-[10px] uppercase font-bold px-2 py-0.5 border ${statusColor[h.status] || 'bg-slate-100 text-slate-700'}`}>
                       {h.status}
                     </Badge>
                   </TableCell>
                 </TableRow>
               ))}
-              {history.length === 0 && (
+              {!loadingHistory && history.length === 0 && (
                 <TableRow><TableCell colSpan={5} className="text-center py-8 text-sm text-slate-500">No requests found.</TableCell></TableRow>
               )}
             </TableBody>
@@ -258,6 +325,75 @@ export default function IvrUploadPage() {
         </CardContent>
       </Card>
 
+      {/* Wallet Adjust Dialog (Super Admin only) */}
+      {isSuperAdmin && (
+        <Dialog open={showWalletDialog} onOpenChange={setShowWalletDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-indigo-600" /> Adjust IVR Credits
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="bg-slate-50 rounded-xl p-4 text-center">
+                <p className="text-sm text-slate-500">Current Balance</p>
+                <p className="text-4xl font-black text-slate-900">{walletBalance ?? '—'}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={walletOp === 'add' ? 'default' : 'outline'}
+                  className={`flex-1 ${walletOp === 'add' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                  onClick={() => setWalletOp('add')}
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add Credits
+                </Button>
+                <Button
+                  variant={walletOp === 'subtract' ? 'default' : 'outline'}
+                  className={`flex-1 ${walletOp === 'subtract' ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                  onClick={() => setWalletOp('subtract')}
+                >
+                  <Minus className="w-4 h-4 mr-1" /> Deduct Credits
+                </Button>
+              </div>
+              <div className="space-y-2">
+                <Label>Amount</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 500"
+                  value={walletAmount}
+                  onChange={e => setWalletAmount(e.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Note (optional)</Label>
+                <Input
+                  placeholder="e.g. Recharged for Oct campaign"
+                  value={walletNote}
+                  onChange={e => setWalletNote(e.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
+              {walletAmount && parseInt(walletAmount) > 0 && (
+                <div className={`text-sm font-bold rounded-lg p-3 ${walletOp === 'add' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  New balance will be: {Math.max(0, (walletBalance ?? 0) + (walletOp === 'add' ? parseInt(walletAmount) : -parseInt(walletAmount)))} credits
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowWalletDialog(false)} disabled={isAdjusting}>Cancel</Button>
+              <Button
+                onClick={handleWalletAdjust}
+                disabled={isAdjusting}
+                className={walletOp === 'add' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+              >
+                {isAdjusting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
