@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Phone, Plus, Trash2, Power, Building2, ShieldCheck, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
+import { getAllDids, addDid, toggleDidStatus, deleteDid } from "@/app/actions/did-registry-actions"
 
 export default function DIDRegistryPage() {
   const supabase = createClient()
@@ -31,12 +32,15 @@ export default function DIDRegistryPage() {
 
   const fetchData = async () => {
     setLoading(true)
-    const { data: orgs } = await supabase.from('organizations').select('id, name').order('name')
-    if (orgs) setOrganizations(orgs)
-    
-    const { data: didRecords } = await supabase.from('tenant_did_registry').select('*').order('created_at', { ascending: false })
-    if (didRecords) setDids(didRecords)
-    
+    try {
+      const { data: orgs } = await supabase.from('organizations').select('id, name').order('name')
+      if (orgs) setOrganizations(orgs)
+      
+      const didRecords = await getAllDids()
+      setDids(didRecords)
+    } catch (e: any) {
+      toast.error("Failed to load DIDs")
+    }
     setLoading(false)
   }
 
@@ -55,32 +59,26 @@ export default function DIDRegistryPage() {
     }
 
     setIsSubmitting(true)
-    const { error } = await supabase.from('tenant_did_registry').insert({
-      tenant_id: formData.tenant_id,
-      did_number: cleanedNumber,
-      label: formData.label,
-      is_active: formData.is_active
-    })
-
-    if (error) {
-      toast.error(error.message)
-    } else {
+    try {
+      await addDid(formData.tenant_id, cleanedNumber, formData.label, formData.is_active)
       toast.success("DID added successfully")
       setShowModal(false)
       setFormData({ tenant_id: "", did_number: "", label: "", is_active: true })
       fetchData()
+    } catch (e: any) {
+      toast.error(e.message)
     }
     setIsSubmitting(false)
   }
 
   const handleToggle = async (record: any) => {
     setIsToggling(record.id)
-    const { error } = await supabase.from('tenant_did_registry').update({ is_active: !record.is_active }).eq('id', record.id)
-    if (error) {
-      toast.error(error.message)
-    } else {
+    try {
+      await toggleDidStatus(record.id, !record.is_active)
       toast.success(`DID marked ${!record.is_active ? 'Active' : 'Inactive'}`)
       fetchData()
+    } catch (e: any) {
+      toast.error(e.message)
     }
     setIsToggling(null)
   }
@@ -88,12 +86,12 @@ export default function DIDRegistryPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this DID?")) return
     setIsDeleting(id)
-    const { error } = await supabase.from('tenant_did_registry').delete().eq('id', id)
-    if (error) {
-      toast.error(error.message)
-    } else {
+    try {
+      await deleteDid(id)
       toast.success("DID deleted successfully")
       fetchData()
+    } catch (e: any) {
+      toast.error(e.message)
     }
     setIsDeleting(null)
   }
