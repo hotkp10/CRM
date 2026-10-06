@@ -97,6 +97,15 @@ export async function getTenantWallet(tenantId: string) {
     return data?.credits_balance ?? 0
 }
 
+// Super admin: get all tenant wallet balances at once
+export async function getAllTenantWallets() {
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data } = await supabaseAdmin
+        .from('tenant_wallets')
+        .select('tenant_id, credits_balance')
+    return data || []
+}
+
 // Super admin: adjust credits (plus or minus)
 export async function adjustTenantCredits(tenantId: string, amount: number, note: string) {
     const supabase = await createClient()

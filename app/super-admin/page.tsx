@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Building2, Users, Loader2, Plus, Server, ShieldAlert, Settings, CheckSquare, MessageSquare, BarChart3, Presentation, Workflow, CloudUpload, Activity, Lock, Unlock, UserCheck, MapPin, Phone } from "lucide-react"
+import { Building2, Users, Loader2, Plus, Server, ShieldAlert, Settings, CheckSquare, MessageSquare, BarChart3, Presentation, Workflow, CloudUpload, Activity, Lock, Unlock, UserCheck, MapPin, Phone, Coins, Minus } from "lucide-react"
 import { toast } from "sonner"
 
 import { provisionNewTenant, updateTenantSettings, fetchAllOrganizations, fetchGlobalStatuses, addGlobalStatus, toggleTenantSuspension, impersonateTenant, fetchAllAnnouncements, createAnnouncement, toggleAnnouncement, fetchRecentSystemActivity,  } from "@/app/actions/super-admin"
@@ -66,6 +66,39 @@ export default function SuperAdminConsole() {
   const [deleteLeadsOrg, setDeleteLeadsOrg] = useState<any>(null)
   const [deleteLeadsStatus, setDeleteLeadsStatus] = useState("")
   const [isDeletingLeads, setIsDeletingLeads] = useState(false)
+
+  // Wallet State
+  const [showWalletModal, setShowWalletModal] = useState(false)
+  const [walletOrg, setWalletOrg] = useState<any>(null)
+  const [walletBalances, setWalletBalances] = useState<Record<string, number>>({})
+  const [walletAmount, setWalletAmount] = useState("")
+  const [walletOp, setWalletOp] = useState<"add" | "subtract">("add")
+  const [isAdjustingWallet, setIsAdjustingWallet] = useState(false)
+
+  const openWalletModal = (org: any) => {
+    setWalletOrg(org)
+    setWalletAmount("")
+    setWalletOp("add")
+    setShowWalletModal(true)
+  }
+
+  const handleWalletAdjust = async () => {
+    const amt = parseInt(walletAmount)
+    if (!amt || amt <= 0) return toast.error("Enter a valid credit amount")
+    const finalAmount = walletOp === 'subtract' ? -amt : amt
+
+    setIsAdjustingWallet(true)
+    try {
+      const { adjustTenantCredits } = await import('@/app/actions/ivr-upload-action')
+      const result = await adjustTenantCredits(walletOrg.id, finalAmount, "")
+      toast.success(`Credits updated! ${walletOrg.name} now has ${result.newBalance} credits`)
+      setWalletBalances(prev => ({ ...prev, [walletOrg.id]: result.newBalance }))
+      setShowWalletModal(false)
+    } catch (e: any) {
+      toast.error(e.message)
+    }
+    setIsAdjustingWallet(false)
+  }
 
   const AVAILABLE_MODULES = [
     { id: "leads", name: "Lead Management", icon: Users },
@@ -227,6 +260,16 @@ export default function SuperAdminConsole() {
     
     if (res.success && res.data) {
         setOrganizations(res.data)
+        // Fetch wallet balances for all orgs
+        try {
+            const { createClient: createServiceClient } = await import('@supabase/supabase-js')
+            // Use a public server action to get all wallets
+            const { getAllTenantWallets } = await import('@/app/actions/ivr-upload-action')
+            const wallets = await getAllTenantWallets()
+            const balanceMap: Record<string, number> = {}
+            wallets.forEach((w: any) => { balanceMap[w.tenant_id] = w.credits_balance })
+            setWalletBalances(balanceMap)
+        } catch(e) { /* silent fail */ }
     } else if (!res.success) {
         toast.error(res.error)
     }
@@ -420,8 +463,15 @@ export default function SuperAdminConsole() {
                                 <Workflow className="h-4 w-4 text-slate-400" />
                                 {org.leadsCount || 0} Total Leads
                             </div>
+                            <div className="flex items-center gap-2">
+                                <Coins className="h-4 w-4 text-amber-400" />
+                                <span className="text-amber-700 font-bold">
+                                    {walletBalances[org.id] !== undefined ? walletBalances[org.id] : '—'} IVR Credits
+                                </span>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center gap-1">
                             <Button 
                                 variant="ghost" 
                                 size="icon" 
@@ -455,6 +505,15 @@ export default function SuperAdminConsole() {
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => openSettings(org)} className="text-xs">
                                 <Settings className="h-3.5 w-3.5 mr-1" /> Settings
+                            </Button>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openWalletModal(org)}
+                                className="text-xs border-amber-200 text-amber-700 hover:bg-amber-50 w-full"
+                            >
+                                <Coins className="h-3.5 w-3.5 mr-1" /> Manage Credits
                             </Button>
                         </div>
                     </div>
@@ -845,6 +904,68 @@ export default function SuperAdminConsole() {
             <Button variant="destructive" onClick={handleDeleteLeads} disabled={isDeletingLeads || !deleteLeadsStatus}>
               {isDeletingLeads ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {isDeletingLeads ? "Deleting..." : "Permanently Delete Leads"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Wallet Management Dialog */}
+      <Dialog open={showWalletModal} onOpenChange={setShowWalletModal}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Coins className="h-5 w-5 text-amber-500" /> IVR Credits — {walletOrg?.name}
+            </DialogTitle>
+            <DialogDescription>Add or deduct IVR credits for this tenant.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+              <p className="text-sm text-amber-600 font-medium">Current Balance</p>
+              <p className="text-4xl font-black text-amber-700">
+                {walletOrg ? (walletBalances[walletOrg.id] !== undefined ? walletBalances[walletOrg.id] : '—') : '—'}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={walletOp === 'add' ? 'default' : 'outline'}
+                className={`flex-1 ${walletOp === 'add' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                onClick={() => setWalletOp('add')}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add Credits
+              </Button>
+              <Button
+                variant={walletOp === 'subtract' ? 'default' : 'outline'}
+                className={`flex-1 ${walletOp === 'subtract' ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                onClick={() => setWalletOp('subtract')}
+              >
+                <Minus className="w-4 h-4 mr-1" /> Deduct Credits
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <Label>Amount</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 500"
+                value={walletAmount}
+                onChange={e => setWalletAmount(e.target.value)}
+                className="rounded-xl"
+              />
+            </div>
+            {walletAmount && parseInt(walletAmount) > 0 && walletOrg && (
+              <div className={`text-sm font-bold rounded-lg p-3 ${walletOp === 'add' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                New balance: {Math.max(0, (walletBalances[walletOrg.id] ?? 0) + (walletOp === 'add' ? parseInt(walletAmount) : -parseInt(walletAmount)))} credits
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWalletModal(false)} disabled={isAdjustingWallet}>Cancel</Button>
+            <Button
+              onClick={handleWalletAdjust}
+              disabled={isAdjustingWallet}
+              className={walletOp === 'add' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+            >
+              {isAdjustingWallet ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
