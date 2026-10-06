@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Phone, Plus, Trash2, Power, Building2, ShieldCheck, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { LoadingSkeleton } from "@/components/loading-skeleton"
-import { getAllDids, addDid, toggleDidStatus, deleteDid } from "@/app/actions/did-registry-actions"
+import { getAllDids, addDid, toggleDidStatus, deleteDid, getAllOrganizations } from "@/app/actions/did-registry-actions"
 
 export default function DIDRegistryPage() {
   const supabase = createClient()
@@ -33,10 +33,11 @@ export default function DIDRegistryPage() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const { data: orgs } = await supabase.from('organizations').select('id, name').order('name')
-      if (orgs) setOrganizations(orgs)
-      
-      const didRecords = await getAllDids()
+      const [orgs, didRecords] = await Promise.all([
+        getAllOrganizations(),
+        getAllDids()
+      ])
+      setOrganizations(orgs)
       setDids(didRecords)
     } catch (e: any) {
       toast.error("Failed to load DIDs")

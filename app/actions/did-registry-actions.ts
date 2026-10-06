@@ -9,6 +9,13 @@ export async function getAllDids() {
     return data
 }
 
+export async function getAllOrganizations() {
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data, error } = await supabaseAdmin.from('organizations').select('id, name').order('name')
+    if (error) throw new Error(error.message)
+    return data
+}
+
 export async function addDid(tenant_id: string, did_number: string, label: string, is_active: boolean) {
     const supabaseAdmin = getSupabaseAdmin()
     const { error } = await supabaseAdmin.from('tenant_did_registry').insert({
