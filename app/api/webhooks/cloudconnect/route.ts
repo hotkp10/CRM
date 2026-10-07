@@ -394,17 +394,6 @@ async function handleWebhook(req: Request) {
             .single();
 
         let callLogUserId = matchedAgentId || (lead?.assigned_to) || null;
-        
-        // Final fallback: if absolutely no user can be matched, pick someone from the correct tenant
-        if (!callLogUserId) {
-            const { data: fallbackUsers } = await supabaseAdmin.from('users').select('id').eq('tenant_id', TARGET_IVR_TENANT_ID).limit(1);
-            if (fallbackUsers && fallbackUsers.length > 0) {
-                callLogUserId = fallbackUsers[0].id;
-            } else {
-                const { data: anyUser } = await supabaseAdmin.from('users').select('id').limit(1);
-                if (anyUser) callLogUserId = anyUser[0].id;
-            }
-        }
 
         const logData: any = {
             cloudconnect_uuid: uuid,
