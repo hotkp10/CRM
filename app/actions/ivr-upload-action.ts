@@ -122,7 +122,7 @@ export async function adjustTenantCredits(tenantId: string, amount: number, note
             tenant_id: tenantId,
             credits: amount,
             transaction_type: amount > 0 ? 'RECHARGE' : 'DEDUCTION',
-            description: note || (amount > 0 ? 'Manual Credit Addition (Super Admin)' : 'Manual Credit Deduction (Super Admin)')
+            description: note || (amount > 0 ? 'Manual Credit Addition (Super Admin)' : 'IVR Campaign Consumption')
         })
         if (error) throw new Error(error.message)
     }
