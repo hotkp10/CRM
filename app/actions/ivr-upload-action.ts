@@ -127,6 +127,17 @@ export async function adjustTenantCredits(tenantId: string, amount: number, note
     }, { onConflict: 'tenant_id' })
 
     if (error) throw new Error(error.message)
+
+    // Log the transaction in wallet_ledger
+    if (amount !== 0) {
+        await supabaseAdmin.from('wallet_ledger').insert({
+            tenant_id: tenantId,
+            credits: amount,
+            transaction_type: amount > 0 ? 'RECHARGE' : 'DEDUCTION',
+            description: note || (amount > 0 ? 'Manual Credit Addition (Super Admin)' : 'Manual Credit Deduction (Super Admin)')
+        })
+    }
+
     return { newBalance }
 }
 
@@ -142,4 +153,15 @@ export async function updateIvrRequestStatus(id: string, status: string) {
     const { error } = await supabaseAdmin.from('ivr_upload_requests').update({ status }).eq('id', id)
     if (error) throw new Error(error.message)
     return true
+}
+
+export async function getWalletHistory(tenantId: string) {
+    const supabaseAdmin = getSupabaseAdmin()
+    const { data } = await supabaseAdmin
+        .from('wallet_ledger')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+    return data || []
 }

@@ -14,13 +14,14 @@ import { Upload, CheckCircle, AlertCircle, Loader2, History, UploadCloud, Wallet
 import { toast } from "sonner"
 import Papa from "papaparse"
 import { createClient } from "@/lib/supabase/client"
-import { submitIvrUploadRequest, getIvrUploadHistory } from "@/app/actions/ivr-upload-action"
+import { submitIvrUploadRequest, getIvrUploadHistory, getWalletHistory } from "@/app/actions/ivr-upload-action"
 
 export default function IvrUploadPage() {
   const [tenantId, setTenantId] = useState<string>("")
   const [userRole, setUserRole] = useState<string>("")
   const [dids, setDids] = useState<any[]>([])
   const [history, setHistory] = useState<any[]>([])
+  const [walletHistory, setWalletHistory] = useState<any[]>([])
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -74,8 +75,12 @@ export default function IvrUploadPage() {
   const fetchHistory = async (tId: string) => {
     setLoadingHistory(true)
     try {
-      const data = await getIvrUploadHistory(tId)
-      setHistory(data)
+      const [uploadData, walletData] = await Promise.all([
+        getIvrUploadHistory(tId),
+        getWalletHistory(tId)
+      ])
+      setHistory(uploadData)
+      setWalletHistory(walletData)
     } catch (e: any) {
       console.error("Failed to load history:", e)
     }
@@ -287,6 +292,57 @@ export default function IvrUploadPage() {
               ))}
               {!loadingHistory && history.length === 0 && (
                 <TableRow><TableCell colSpan={5} className="text-center py-8 text-sm text-slate-500">No requests found.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Wallet History */}
+      <Card className="shadow-sm border-slate-200 rounded-2xl overflow-hidden mt-8">
+        <CardHeader className="bg-white border-b py-4">
+          <CardTitle className="text-lg text-slate-800 font-bold flex items-center gap-2">
+            <Coins className="w-5 h-5 text-amber-500" /> Wallet Transactions
+            {loadingHistory && <Loader2 className="w-4 h-4 animate-spin ml-2 text-slate-400" />}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader className="bg-slate-50">
+              <TableRow>
+                <TableHead className="font-bold">Date</TableHead>
+                <TableHead className="font-bold">Description</TableHead>
+                <TableHead className="text-center font-bold">Type</TableHead>
+                <TableHead className="text-right font-bold">Credits</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {walletHistory.map(h => (
+                <TableRow key={h.id}>
+                  <TableCell className="text-xs text-slate-500">
+                    {new Date(h.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </TableCell>
+                  <TableCell className="font-medium text-sm text-slate-800 max-w-sm truncate" title={h.description || ''}>
+                    {h.description || '-'}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge className={`text-[10px] uppercase font-bold px-2 py-0.5 border ${
+                      h.transaction_type === 'RECHARGE' ? 'bg-green-100 text-green-800 border-green-200' :
+                      h.transaction_type === 'DEDUCTION' ? 'bg-red-100 text-red-800 border-red-200' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>
+                      {h.transaction_type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right text-sm font-mono font-bold">
+                    <span className={h.credits > 0 ? 'text-green-600' : 'text-red-600'}>
+                      {h.credits > 0 ? '+' : ''}{h.credits?.toLocaleString()}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {!loadingHistory && walletHistory.length === 0 && (
+                <TableRow><TableCell colSpan={4} className="text-center py-8 text-sm text-slate-500">No transactions found.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
