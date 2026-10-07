@@ -21,6 +21,7 @@ export default function IvrUploadPage() {
   const [userRole, setUserRole] = useState<string>("")
   const [dids, setDids] = useState<any[]>([])
   const [history, setHistory] = useState<any[]>([])
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [loadingHistory, setLoadingHistory] = useState(false)
 
@@ -64,6 +65,7 @@ export default function IvrUploadPage() {
         setDids(didData || [])
 
         await fetchHistory(profile.tenant_id)
+        await fetchWallet(profile.tenant_id)
       }
     }
     setLoadingInitial(false)
@@ -78,6 +80,14 @@ export default function IvrUploadPage() {
       console.error("Failed to load history:", e)
     }
     setLoadingHistory(false)
+  }
+
+  const fetchWallet = async (tId: string) => {
+    const { data } = await supabase.from('tenant_wallets')
+      .select('credits_balance')
+      .eq('tenant_id', tId)
+      .maybeSingle()
+    setWalletBalance(data?.credits_balance ?? 0)
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,6 +161,16 @@ export default function IvrUploadPage() {
           <p className="text-slate-500 mt-2 font-medium">Upload contact lists for IVR campaigns to be processed by our team.</p>
         </div>
 
+        {/* Wallet Balance Card (Read Only) */}
+        <div className="flex flex-col items-end gap-2">
+          <div className="bg-white border border-slate-200 rounded-2xl px-5 py-3 flex items-center gap-3 shadow-sm">
+            <Coins className="h-6 w-6 text-amber-500" />
+            <div>
+              <p className="text-xs text-slate-500 font-medium">IVR Credits</p>
+              <p className="text-2xl font-black text-slate-900">{walletBalance ?? '—'}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {dids.length === 0 && (
