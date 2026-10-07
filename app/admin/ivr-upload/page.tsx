@@ -21,7 +21,6 @@ export default function IvrUploadPage() {
   const [userRole, setUserRole] = useState<string>("")
   const [dids, setDids] = useState<any[]>([])
   const [history, setHistory] = useState<any[]>([])
-  const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [loadingHistory, setLoadingHistory] = useState(false)
 
@@ -33,13 +32,6 @@ export default function IvrUploadPage() {
   const [validPhones, setValidPhones] = useState<string[]>([])
   const [notes, setNotes] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // Wallet adjustment state
-  const [showWalletDialog, setShowWalletDialog] = useState(false)
-  const [walletAmount, setWalletAmount] = useState("")
-  const [walletNote, setWalletNote] = useState("")
-  const [walletOp, setWalletOp] = useState<"add" | "subtract">("add")
-  const [isAdjusting, setIsAdjusting] = useState(false)
 
   const supabase = createClient()
 
@@ -72,7 +64,6 @@ export default function IvrUploadPage() {
         setDids(didData || [])
 
         await fetchHistory(profile.tenant_id)
-        await fetchWallet(profile.tenant_id)
       }
     }
     setLoadingInitial(false)
@@ -87,14 +78,6 @@ export default function IvrUploadPage() {
       console.error("Failed to load history:", e)
     }
     setLoadingHistory(false)
-  }
-
-  const fetchWallet = async (tId: string) => {
-    const { data } = await supabase.from('tenant_wallets')
-      .select('credits_balance')
-      .eq('tenant_id', tId)
-      .maybeSingle()
-    setWalletBalance(data?.credits_balance ?? 0)
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,26 +127,6 @@ export default function IvrUploadPage() {
     setIsSubmitting(false)
   }
 
-  const handleWalletAdjust = async () => {
-    const amt = parseInt(walletAmount)
-    if (!amt || amt <= 0) return toast.error("Enter a valid credit amount")
-    const finalAmount = walletOp === 'subtract' ? -amt : amt
-
-    setIsAdjusting(true)
-    try {
-      const { adjustTenantCredits } = await import('@/app/actions/ivr-upload-action')
-      const result = await adjustTenantCredits(tenantId, finalAmount, walletNote)
-      toast.success(`Credits updated! New balance: ${result.newBalance}`)
-      setWalletBalance(result.newBalance)
-      setShowWalletDialog(false)
-      setWalletAmount("")
-      setWalletNote("")
-    } catch (e: any) {
-      toast.error(e.message)
-    }
-    setIsAdjusting(false)
-  }
-
   const statusColor: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
     processing: 'bg-blue-100 text-blue-800 border-blue-200',
@@ -188,21 +151,6 @@ export default function IvrUploadPage() {
           <p className="text-slate-500 mt-2 font-medium">Upload contact lists for IVR campaigns to be processed by our team.</p>
         </div>
 
-        {/* Wallet Balance Card */}
-        <div className="flex flex-col items-end gap-2">
-          <div className="bg-white border border-slate-200 rounded-2xl px-5 py-3 flex items-center gap-3 shadow-sm">
-            <Coins className="h-6 w-6 text-amber-500" />
-            <div>
-              <p className="text-xs text-slate-500 font-medium">IVR Credits</p>
-              <p className="text-2xl font-black text-slate-900">{walletBalance ?? '—'}</p>
-            </div>
-            {isSuperAdmin && (
-              <Button size="sm" variant="outline" className="ml-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50" onClick={() => setShowWalletDialog(true)}>
-                Adjust
-              </Button>
-            )}
-          </div>
-        </div>
       </div>
 
       {dids.length === 0 && (
@@ -325,75 +273,6 @@ export default function IvrUploadPage() {
         </CardContent>
       </Card>
 
-      {/* Wallet Adjust Dialog (Super Admin only) */}
-      {isSuperAdmin && (
-        <Dialog open={showWalletDialog} onOpenChange={setShowWalletDialog}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Wallet className="h-5 w-5 text-indigo-600" /> Adjust IVR Credits
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="bg-slate-50 rounded-xl p-4 text-center">
-                <p className="text-sm text-slate-500">Current Balance</p>
-                <p className="text-4xl font-black text-slate-900">{walletBalance ?? '—'}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant={walletOp === 'add' ? 'default' : 'outline'}
-                  className={`flex-1 ${walletOp === 'add' ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                  onClick={() => setWalletOp('add')}
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add Credits
-                </Button>
-                <Button
-                  variant={walletOp === 'subtract' ? 'default' : 'outline'}
-                  className={`flex-1 ${walletOp === 'subtract' ? 'bg-red-600 hover:bg-red-700' : ''}`}
-                  onClick={() => setWalletOp('subtract')}
-                >
-                  <Minus className="w-4 h-4 mr-1" /> Deduct Credits
-                </Button>
-              </div>
-              <div className="space-y-2">
-                <Label>Amount</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 500"
-                  value={walletAmount}
-                  onChange={e => setWalletAmount(e.target.value)}
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Note (optional)</Label>
-                <Input
-                  placeholder="e.g. Recharged for Oct campaign"
-                  value={walletNote}
-                  onChange={e => setWalletNote(e.target.value)}
-                  className="rounded-xl"
-                />
-              </div>
-              {walletAmount && parseInt(walletAmount) > 0 && (
-                <div className={`text-sm font-bold rounded-lg p-3 ${walletOp === 'add' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                  New balance will be: {Math.max(0, (walletBalance ?? 0) + (walletOp === 'add' ? parseInt(walletAmount) : -parseInt(walletAmount)))} credits
-                </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowWalletDialog(false)} disabled={isAdjusting}>Cancel</Button>
-              <Button
-                onClick={handleWalletAdjust}
-                disabled={isAdjusting}
-                className={walletOp === 'add' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
-              >
-                {isAdjusting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Confirm
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   )
 }
