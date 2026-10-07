@@ -116,29 +116,20 @@ export async function adjustTenantCredits(tenantId: string, amount: number, note
 
     const supabaseAdmin = getSupabaseAdmin()
 
-    // Upsert wallet row
-    const { data: existing } = await supabaseAdmin.from('tenant_wallets').select('credits_balance').eq('tenant_id', tenantId).maybeSingle()
-    const currentBalance = existing?.credits_balance ?? 0
-    const newBalance = Math.max(0, currentBalance + amount)
-
-    const { error } = await supabaseAdmin.from('tenant_wallets').upsert({
-        tenant_id: tenantId,
-        credits_balance: newBalance,
-    }, { onConflict: 'tenant_id' })
-
-    if (error) throw new Error(error.message)
-
-    // Log the transaction in wallet_ledger
+    // Log the transaction in wallet_ledger (a database trigger automatically updates tenant_wallets)
     if (amount !== 0) {
-        await supabaseAdmin.from('wallet_ledger').insert({
+        const { error } = await supabaseAdmin.from('wallet_ledger').insert({
             tenant_id: tenantId,
             credits: amount,
             transaction_type: amount > 0 ? 'RECHARGE' : 'DEDUCTION',
             description: note || (amount > 0 ? 'Manual Credit Addition (Super Admin)' : 'Manual Credit Deduction (Super Admin)')
         })
+        if (error) throw new Error(error.message)
     }
 
-    return { newBalance }
+    // Fetch the updated balance
+    const { data: existing } = await supabaseAdmin.from('tenant_wallets').select('credits_balance').eq('tenant_id', tenantId).maybeSingle()
+    return { newBalance: existing?.credits_balance ?? 0 }
 }
 
 // Super admin: update request status
