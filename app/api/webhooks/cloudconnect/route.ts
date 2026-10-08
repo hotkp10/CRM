@@ -402,8 +402,11 @@ async function handleWebhook(req: Request) {
             call_status: (callStatus || 'completed').toLowerCase(),
             duration_seconds: callDurationSeconds,
             notes: `Ozonetel Call (${callStatus || 'Completed'}). Agent: ${extensionNumber}`,
-            user_id: callLogUserId
         };
+
+        if (callLogUserId) {
+            logData.user_id = callLogUserId;
+        }
 
         if (recordingUrl) {
             logData.recording_url = recordingUrl;
@@ -426,6 +429,10 @@ async function handleWebhook(req: Request) {
             const { error: updateError } = await supabaseAdmin.from('call_logs').update(logData).eq('id', existingLog.id);
             if (updateError) console.error(`[Ozonetel Webhook] Error updating call log:`, updateError);
         } else {
+            if (!callLogUserId) {
+                console.warn(`[Ozonetel Webhook] Skipping call_logs insert because user_id is required and no agent was matched.`);
+                return NextResponse.json({ success: true, message: 'Call processed but skipped call_logs insert (No Agent)' });
+            }
             console.warn(`[Ozonetel Webhook] Inserting new call log.`);
             const { error: insertError } = await supabaseAdmin.from('call_logs').insert([logData]);
             if (insertError) console.error(`[Ozonetel Webhook] Error inserting call log:`, insertError);
