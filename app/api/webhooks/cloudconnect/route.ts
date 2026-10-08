@@ -108,6 +108,16 @@ async function handleWebhook(req: Request) {
     const dtmfInput = getParam('dtmf_input') || getParam('digit') || getParam('AudioInput') || getParam('Input') || '';
     const recordingUrl = getParam('recording_url') || getParam('AudioFile') || getParam('RecordingUrl') || '';
 
+    // =========================================================================
+    // SPAM & LOAD PREVENTION: Drop intermediate/noisy events IMMEDIATELY
+    // =========================================================================
+    // We KEEP "ringing" (or "ring") because it's required for Agent Screen Pops.
+    const IGNORED_STATUSES = ['dial', 'dialing', 'progress', 'in-progress', 'initiated', 'queued'];
+    if (IGNORED_STATUSES.includes(callStatus.toLowerCase())) {
+        console.warn(`[Ozonetel Webhook] Dropping intermediate/spammy status instantly: ${callStatus}`);
+        return NextResponse.json({ success: true, message: `Ignored status: ${callStatus}` });
+    }
+
     console.warn(`[Ozonetel Webhook] Extracted Values -> UUID: ${uuid}, Caller: ${callerNumber}, Ext: ${extensionNumber}, Status: ${callStatus}, DTMF: ${dtmfInput}, Duration: ${rawDuration}`);
 
     // Convert duration like "00:01:20" or "80" to seconds
