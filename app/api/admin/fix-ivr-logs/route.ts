@@ -10,8 +10,8 @@ export async function GET(request: Request) {
     )
     
     // Only target logs that specifically say "Agent: undefined" or "Agent: null"
-    const { data: d1, error: e1 } = await supabaseAdmin.from('call_logs').update({ user_id: null }).like('notes', '%Agent: undefined%').select('id');
-    const { data: d2, error: e2 } = await supabaseAdmin.from('call_logs').update({ user_id: null }).like('notes', '%Agent: null%').select('id');
+    const { data: d1, error: e1 } = await supabaseAdmin.from('call_logs').delete().like('notes', '%Agent: undefined%').select('id');
+    const { data: d2, error: e2 } = await supabaseAdmin.from('call_logs').delete().like('notes', '%Agent: null%').select('id');
     
     // For empty agent, it ends precisely at "Agent: " or "Agent:"
     // We can just select them first and filter in JS to be extremely safe!
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     if (allLogs) {
         for (const log of allLogs) {
             if (log.notes.endsWith('Agent: ') || log.notes.endsWith('Agent:')) {
-                await supabaseAdmin.from('call_logs').update({ user_id: null }).eq('id', log.id);
+                await supabaseAdmin.from('call_logs').delete().eq('id', log.id);
                 d3Count++;
             }
         }
